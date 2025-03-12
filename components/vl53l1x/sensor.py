@@ -23,16 +23,21 @@ DistanceMode = vl53l1x_ns.enum("DistanceMode")
 
 DISTANCE_MODES = {
     "short": DistanceMode.SHORT,
+    "medium": DistanceMode.MEDIUM,
     "long": DistanceMode.LONG, 
 }
 
 CONF_DISTANCE_MODE = "distance_mode"
 CONF_RANGE_STATUS = "range_status"
+CONF_TIMING_BUDGET = "timing_budget"
 
 def validate_update_interval(config):
-    if config[CONF_UPDATE_INTERVAL].total_milliseconds < 1000:
+    timing_budget = config[CONF_TIMING_BUDGET].total_milliseconds
+    if timing_budget < 0:
+        raise cv.Invalid("VL53L1X update_interval must be positive")
+    if config[CONF_UPDATE_INTERVAL].total_milliseconds < timing_budget:
         raise cv.Invalid(
-            f"VL53L1X update_interval must be 1 second or greater. Increase update_interval to >= 1 second"
+            "VL53L1X update_interval must be greater than timing budget"
         )
     return config
 
@@ -43,6 +48,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DISTANCE_MODE, default="long"): cv.enum(
                 DISTANCE_MODES, upper=False
             ),
+            cv.Optional(CONF_TIMING_BUDGET, default="500ms"): cv.time_period_str_unit,
             cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETER,
                 accuracy_decimals=0,
@@ -66,11 +72,12 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     if CONF_DISTANCE in config:
-      sens = await sensor.new_sensor(config[CONF_DISTANCE])    
-      cg.add(var.set_distance_sensor(sens))
+        sens = await sensor.new_sensor(config[CONF_DISTANCE])
+        cg.add(var.set_distance_sensor(sens))
 
     if CONF_RANGE_STATUS in config:
-        sens = await sensor.new_sensor(config[CONF_RANGE_STATUS])    
+        sens = await sensor.new_sensor(config[CONF_RANGE_STATUS])
         cg.add(var.set_range_status_sensor(sens))
 
+    cg.add(var.config_timing_budget(int(config[CONF_TIMING_BUDGET].total_milliseconds)))
     cg.add(var.config_distance_mode(config[CONF_DISTANCE_MODE]))

@@ -101,6 +101,7 @@ static const uint16_t SYSTEM__SEED_CONFIG                                       
 static const uint16_t SD_CONFIG__WOI_SD0                                                  = 0x0078;
 static const uint16_t SD_CONFIG__WOI_SD1                                                  = 0x0079;
 static const uint16_t SD_CONFIG__INITIAL_PHASE_SD0                                        = 0x007A;
+static const uint16_t SD_CONFIG__INITIAL_PHASE_SD1                                        = 0x007B;
 static const uint16_t SYSTEM__GROUPED_PARAMETER_HOLD_1                                    = 0x007C;
 static const uint16_t SD_CONFIG__QUANTIFIER                                               = 0x007E;
 static const uint16_t SYSTEM__SEQUENCE_CONFIG                                             = 0x0081;
@@ -115,8 +116,6 @@ static const uint16_t FIRMWARE__SYSTEM_STATUS                                   
 static const uint16_t IDENTIFICATION__MODEL_ID                                            = 0x010F;
 
 static const uint16_t BOOT_TIMEOUT     = 120;
-static const uint16_t TIMING_BUDGET    = 500;                          // timing budget is maximum allowable = 500 ms
-static const uint16_t RANGING_FINISHED = (TIMING_BUDGET * 115) / 100;  // add 15% extra to timing budget to ensure ranging is finished
 
 // Sensor Initialisation
 void VL53L1XComponent::setup() {
@@ -250,7 +249,7 @@ void VL53L1XComponent::setup() {
     return;
   }
 
-  if (!this->set_timing_budget(TIMING_BUDGET)) {
+  if (!this->set_timing_budget(this->timing_budget_)) {
     this->error_code_ = SET_MODE_FAILED;
     this->mark_failed();
     return;
@@ -324,7 +323,7 @@ void VL53L1XComponent::dump_config() {
           ESP_LOGCONFIG(TAG, "  Distance Mode: LONG");
         }
       }
-      ESP_LOGD(TAG, "  Timing Budget: %ims",TIMING_BUDGET);
+      ESP_LOGD(TAG, "  Timing Budget: %ims", this->timing_budget_);
       LOG_I2C_DEVICE(this);
       LOG_UPDATE_INTERVAL(this);
       LOG_SENSOR("  ", "Distance Sensor:", this->distance_sensor_);
@@ -337,7 +336,7 @@ void VL53L1XComponent::dump_config() {
 void VL53L1XComponent::loop() {
   bool is_dataready;
   // only run loop if not updating and every LOOP_TIME
-  if ((!this->ranging_active_) || ((millis() - this->last_loop_time_) < RANGING_FINISHED) || this->is_failed() )
+  if ((!this->ranging_active_) || ((millis() - this->last_loop_time_) < this->timing_budget_) || this->is_failed() )
     return;
 
   if (!this->check_for_dataready(&is_dataready)) {
@@ -359,11 +358,24 @@ void VL53L1XComponent::loop() {
     return;
   }
 
+  // Check if last range failed to avoid blips
+  if (this->range_status_ != 0) {
+    if (this->_last_failed) {
+      ESP_LOGD(TAG, "Last range did not fail, not publishing failure");
+      this->_last_failed = true;
+      return;
+    } else {
+      ESP_LOGD(TAG, "Last range also failed, publishing range");
+    }
+  } else {
+    this->_last_failed = false;
+  }
+
   ESP_LOGD(TAG, "Publishing Distance: %imm with Ranging status: %i",this->distance_,this->range_status_);
   if (this->distance_sensor_ != nullptr)
-     this->distance_sensor_->publish_state(this->distance_);
+    this->distance_sensor_->publish_state(this->distance_);
   if (this->range_status_sensor_ != nullptr)
-     this->range_status_sensor_->publish_state(this->range_status_);
+    this->range_status_sensor_->publish_state(this->range_status_);
 
   this->ranging_active_ = false;
 }
@@ -417,6 +429,19 @@ bool VL53L1XComponent::set_distance_mode(DistanceMode distance_mode) {
       if (ok) ok = this->vl53l1x_write_byte(RANGE_CONFIG__VALID_PHASE_HIGH, 0x38);
       if (ok) ok = this->vl53l1x_write_byte_16(SD_CONFIG__WOI_SD0, 0x0705);
       if (ok) ok = this->vl53l1x_write_byte_16(SD_CONFIG__INITIAL_PHASE_SD0, 0x0606);
+      break;
+    case MEDIUM:
+      // timing config
+      if (ok) ok = this->vl53l1x_write_byte(RANGE_CONFIG__VCSEL_PERIOD_A, 0x0B);
+      if (ok) ok = this->vl53l1x_write_byte(RANGE_CONFIG__VCSEL_PERIOD_B, 0x09);
+      if (ok) ok = this->vl53l1x_write_byte(RANGE_CONFIG__VALID_PHASE_HIGH, 0x78);
+
+      // dynamic config
+      if (ok) ok = this->vl53l1x_write_byte(SD_CONFIG__WOI_SD0, 0x0B);
+      if (ok) ok = this->vl53l1x_write_byte(SD_CONFIG__WOI_SD1, 0x09);
+      if (ok) ok = this->vl53l1x_write_byte(SD_CONFIG__INITIAL_PHASE_SD0, 10); // tuning parm default
+      if (ok) ok = this->vl53l1x_write_byte(SD_CONFIG__INITIAL_PHASE_SD1, 10); // tuning parm default
+
       break;
     case LONG:
       if (ok) ok = this->vl53l1x_write_byte(RANGE_CONFIG__VCSEL_PERIOD_A, 0x0F);
