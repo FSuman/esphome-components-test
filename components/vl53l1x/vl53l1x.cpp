@@ -274,58 +274,58 @@ void VL53L1XComponent::dump_config() {
 
   switch (this->error_code_) {
     case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, " Sensor id does not match VL53L1X or VL53L4CD OR communication failure reading sensor id");
+      ESP_LOGE(TAG, "Sensor id does not match VL53L1X or VL53L4CD OR communication failure reading sensor id");
       break;
 
     case SOFT_RESET_FAILED:
-      ESP_LOGE(TAG, "  Soft reset communication failure");
+      ESP_LOGE(TAG, "Soft reset communication failure");
       break;
 
     case BOOT_STATE_FAILED:
-      ESP_LOGE(TAG, "  Boot state communication failure");
+      ESP_LOGE(TAG, "Boot state communication failure");
       break;
 
     case BOOT_STATE_TIMEOUT:
-      ESP_LOGE(TAG, "  Timeout waiting for sensor to boot");
+      ESP_LOGE(TAG, "Timeout waiting for sensor to boot");
       break;
 
     case CONFIG_FAILED:
-      ESP_LOGE(TAG, "  Communication failure when configuring sensor");
+      ESP_LOGE(TAG, "Communication failure when configuring sensor");
       break;
 
     case SET_MODE_FAILED:
-      ESP_LOGE(TAG, "  Communication failure when setting distance or timing budget");
+      ESP_LOGE(TAG, "Communication failure when setting distance or timing budget");
       break;
 
     case START_RANGING_FAILED:
-      ESP_LOGE(TAG, "  Start Ranging failed");
+      ESP_LOGE(TAG, "Start Ranging failed");
       break;
     case SENSOR_READ_FAILED:
-      ESP_LOGE(TAG, " Sensor read process failed");
+      ESP_LOGE(TAG, "Sensor read process failed");
       break;
     case NONE:
-      ESP_LOGD(TAG, "  Setup successful");
+      ESP_LOGD(TAG, "Setup successful");
 
       // no errors so sensor must be VL53L1X or VL53L4CD
       if (this->sensor_id_ == 0xEACC) {
-        ESP_LOGI(TAG, "  Found sensor: VL53L1X");
+        ESP_LOGI(TAG, "Found sensor: VL53L1X");
       }
       if (this->sensor_id_ == 0xEBAA) {
-        ESP_LOGI(TAG,"  Found sensor: VL53L4CD");
+        ESP_LOGI(TAG,"Found sensor: VL53L4CD");
       }
 
       if (this->distance_mode_overriden_) {
-        ESP_LOGW(TAG, "  VL53L4CD Distance Mode overriden: must be SHORT");
+        ESP_LOGW(TAG, "VL53L4CD Distance Mode overriden: must be SHORT");
       }
       else {
         if (this->distance_mode_ == SHORT) {
-          ESP_LOGCONFIG(TAG, "  Distance Mode: SHORT");
+          ESP_LOGCONFIG(TAG, "Distance Mode: SHORT");
         }
         else {
-          ESP_LOGCONFIG(TAG, "  Distance Mode: LONG");
+          ESP_LOGCONFIG(TAG, "Distance Mode: LONG");
         }
       }
-      ESP_LOGD(TAG, "  Timing Budget: %ims", this->timing_budget_);
+      ESP_LOGD(TAG, "Timing Budget: %ims", this->timing_budget_);
       LOG_I2C_DEVICE(this);
       LOG_UPDATE_INTERVAL(this);
       LOG_SENSOR("  ", "Distance Sensor:", this->distance_sensor_);
@@ -384,7 +384,7 @@ void VL53L1XComponent::loop() {
 
 void VL53L1XComponent::update() {
   if (this->ranging_active_) {
-    ESP_LOGD(TAG, " Update triggered while ranging active"); // should never happen
+    ESP_LOGD(TAG, "Update triggered while ranging active"); // should never happen
     return;
   }
 
@@ -431,7 +431,7 @@ bool VL53L1XComponent::get_sensor_id(bool* valid_sensor) {
 bool VL53L1XComponent::set_distance_mode(DistanceMode distance_mode) {
   uint16_t timing_budget;
   if (!this->get_timing_budget(&timing_budget)) {
-    ESP_LOGE(TAG, "  Reading timimg budget failed when setting distance mode");
+    ESP_LOGE(TAG, "Reading timimg budget failed when setting distance mode");
     return false;
   }
 
@@ -466,17 +466,17 @@ bool VL53L1XComponent::set_distance_mode(DistanceMode distance_mode) {
       break;
     default:
       // should never happen
-      ESP_LOGE(TAG,"  Attempt to set invalid distance mode"); // should never happen
+      ESP_LOGE(TAG,"Attempt to set invalid distance mode"); // should never happen
       return false;
   }
 
   if (!ok ) {
-    ESP_LOGE(TAG, "  Writing set distance mode configuration values failed");
+    ESP_LOGE(TAG, "Writing set distance mode configuration values failed");
     return false;
   }
 
   if (!this->set_timing_budget(timing_budget)) {
-    ESP_LOGE(TAG, "  Re-writing timing budget failed when setting distance mode");
+    ESP_LOGE(TAG, "Re-writing timing budget failed when setting distance mode");
     return false;
   }
 
@@ -573,7 +573,7 @@ bool VL53L1XComponent::get_distance_mode(DistanceMode *mode) {
   uint8_t raw_distance_mode;
 
   if (!this->vl53l1x_read_byte(PHASECAL_CONFIG__TIMEOUT_MACROP, &raw_distance_mode)) {
-    ESP_LOGE(TAG, "  Error reading distance mode");
+    ESP_LOGE(TAG, "Error reading distance mode");
     return false;
   }
 
@@ -588,7 +588,7 @@ bool VL53L1XComponent::get_distance_mode(DistanceMode *mode) {
   }
 
   // should never get here
-  ESP_LOGE(TAG, "  Invalid value when reading distance mode");
+  ESP_LOGE(TAG, "Invalid value when reading distance mode");
   return false;
 }
 
@@ -623,7 +623,7 @@ bool VL53L1XComponent::start_continuous(uint32_t period_ms) {
 bool VL53L1XComponent::stop_continuous() {
   // mode_range__abort
   if (!this->vl53l1x_write_byte(SYSTEM__MODE_START, 0x80)) {
-    ESP_LOGE(TAG, "  Error writing stop ranging");
+    ESP_LOGE(TAG, "Error writing stop ranging");
     return false;
   }
 
@@ -645,7 +645,7 @@ bool VL53L1XComponent::stop_continuous() {
   if (ok) ok = this->vl53l1x_write_byte(PHASECAL_CONFIG__OVERRIDE, 0x00);
 
   if (!ok) {
-    ESP_LOGE(TAG, "  Error writing configuration for stop ranging");
+    ESP_LOGE(TAG, "Error writing configuration for stop ranging");
     return false;
   }
   return true;
@@ -688,26 +688,26 @@ bool VL53L1XComponent::check_for_dataready(bool *is_dataready) {
 // perform sensor read process
 bool VL53L1XComponent::perform_sensor_read() {
   if (!read_ranging_results()) {
-    ESP_LOGE(TAG, "  Error reading ranging results");
+    ESP_LOGE(TAG, "Error reading ranging results");
     return false;
   }
 
   if (!this->calibrated_) {
     if (!setup_manual_calibration()) {
-      ESP_LOGE(TAG, "  Error setting up manual calibration");
+      ESP_LOGE(TAG, "Error setting up manual calibration");
       return false;
     }
     this->calibrated_ = true;
   }
 
   if (!update_dss()) {
-    ESP_LOGE(TAG, "  Error updating dynamic SPAD selection");
+    ESP_LOGE(TAG, "Error updating dynamic SPAD selection");
     return false;
   }
 
   // sys_interrupt_clear_range
   if (!this->vl53l1x_write_byte(SYSTEM__INTERRUPT_CLEAR, 0x01))  {
-    ESP_LOGE(TAG, "  Error writing clear interrupt after reading sensor");
+    ESP_LOGE(TAG, "Error writing clear interrupt after reading sensor");
     return false;
   }
 
@@ -724,7 +724,7 @@ bool VL53L1XComponent::read_ranging_results() {
   uint8_t status;
 
   if (!this->vl53l1x_read_bytes(RESULT__RANGE_STATUS, results_buffer, 17)) {
-    ESP_LOGE(TAG, "  Error reading ranging results");
+    ESP_LOGE(TAG, "Error reading ranging results");
     return false;
   }
 
