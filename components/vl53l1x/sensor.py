@@ -86,4 +86,5 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_XSHUT_PIN])
         cg.add(var.set_xshut_pin(pin))
 
+    cg.add(var.config_timing_budget(int(config[CONF_TIMING_BUDGET].total_milliseconds)))
     cg.add(var.config_distance_mode(config[CONF_DISTANCE_MODE]))

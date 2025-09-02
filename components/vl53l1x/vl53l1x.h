@@ -10,6 +10,7 @@ namespace vl53l1x {
 
 enum DistanceMode {
   SHORT = 0,
+  MEDIUM,
   LONG,
 };
 
