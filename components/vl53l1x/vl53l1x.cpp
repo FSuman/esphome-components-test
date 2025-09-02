@@ -101,6 +101,7 @@ static const uint16_t SYSTEM__SEED_CONFIG                                       
 static const uint16_t SD_CONFIG__WOI_SD0                                                  = 0x0078;
 static const uint16_t SD_CONFIG__WOI_SD1                                                  = 0x0079;
 static const uint16_t SD_CONFIG__INITIAL_PHASE_SD0                                        = 0x007A;
+static const uint16_t SD_CONFIG__INITIAL_PHASE_SD1                                        = 0x007B;
 static const uint16_t SYSTEM__GROUPED_PARAMETER_HOLD_1                                    = 0x007C;
 static const uint16_t SD_CONFIG__QUANTIFIER                                               = 0x007E;
 static const uint16_t SYSTEM__SEQUENCE_CONFIG                                             = 0x0081;
