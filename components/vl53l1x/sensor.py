@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MILLIMETER,
 )
+from esphome import pins
 
 CODEOWNERS = ["@mrtoy-me"]
 DEPENDENCIES = ["i2c"]
@@ -30,6 +31,7 @@ DISTANCE_MODES = {
 CONF_DISTANCE_MODE = "distance_mode"
 CONF_RANGE_STATUS = "range_status"
 CONF_TIMING_BUDGET = "timing_budget"
+CONF_XSHUT_PIN = "xshut_pin"
 
 def validate_update_interval(config):
     timing_budget = config[CONF_TIMING_BUDGET].total_milliseconds
@@ -59,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_XSHUT_PIN): pins.gpio_output_pin_schema,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -79,5 +82,8 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_RANGE_STATUS])
         cg.add(var.set_range_status_sensor(sens))
 
-    cg.add(var.config_timing_budget(int(config[CONF_TIMING_BUDGET].total_milliseconds)))
+    if CONF_XSHUT_PIN in config:
+        pin = await cg.gpio_pin_expression(config[CONF_XSHUT_PIN])
+        cg.add(var.set_xshut_pin(pin))
+
     cg.add(var.config_distance_mode(config[CONF_DISTANCE_MODE]))

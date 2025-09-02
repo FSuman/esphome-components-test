@@ -3,13 +3,13 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/gpio.h"
 
 namespace esphome {
 namespace vl53l1x {
 
 enum DistanceMode {
   SHORT = 0,
-  MEDIUM,
   LONG,
 };
 
@@ -35,15 +35,13 @@ class VL53L1XComponent : public PollingComponent, public i2c::I2CDevice, public 
   void set_range_status_sensor(sensor::Sensor *range_status_sensor) { range_status_sensor_ = range_status_sensor; }
   void config_distance_mode(DistanceMode distance_mode ) { distance_mode_ = distance_mode; }
   void config_timing_budget(uint16_t timing_budget) { timing_budget_ = timing_budget; }
+  void set_xshut_pin(GPIOPin *xshut_pin) { xshut_pin_ = xshut_pin; }
 
   void setup() override;
   void dump_config() override;
   void update() override;
   void loop() override;
   float get_setup_priority() const override;
-
-  bool set_timing_budget(uint16_t timing_budget_ms);
-  bool get_timing_budget(uint16_t *timing_budget_ms);
 
   std::string range_status_to_string();
 
@@ -82,6 +80,9 @@ class VL53L1XComponent : public PollingComponent, public i2c::I2CDevice, public 
 
   bool get_sensor_id(bool *valid_sensor);
   bool boot_state(uint8_t *state);
+
+  bool set_timing_budget(uint16_t timing_budget_ms);
+  bool get_timing_budget(uint16_t *timing_budget_ms);
 
   bool set_distance_mode(DistanceMode distance_mode);
   bool get_distance_mode(DistanceMode *mode);
@@ -137,6 +138,9 @@ class VL53L1XComponent : public PollingComponent, public i2c::I2CDevice, public 
   // sensors
   sensor::Sensor *distance_sensor_{nullptr};
   sensor::Sensor *range_status_sensor_{nullptr};
+
+  // GPIO pins
+  GPIOPin *xshut_pin_{nullptr};
 };
 
 }  // namespace vl53l1x

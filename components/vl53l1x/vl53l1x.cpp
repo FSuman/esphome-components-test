@@ -101,7 +101,6 @@ static const uint16_t SYSTEM__SEED_CONFIG                                       
 static const uint16_t SD_CONFIG__WOI_SD0                                                  = 0x0078;
 static const uint16_t SD_CONFIG__WOI_SD1                                                  = 0x0079;
 static const uint16_t SD_CONFIG__INITIAL_PHASE_SD0                                        = 0x007A;
-static const uint16_t SD_CONFIG__INITIAL_PHASE_SD1                                        = 0x007B;
 static const uint16_t SYSTEM__GROUPED_PARAMETER_HOLD_1                                    = 0x007C;
 static const uint16_t SD_CONFIG__QUANTIFIER                                               = 0x007E;
 static const uint16_t SYSTEM__SEQUENCE_CONFIG                                             = 0x0081;
@@ -115,7 +114,7 @@ static const uint16_t RESULT__OSC_CALIBRATE_VAL                                 
 static const uint16_t FIRMWARE__SYSTEM_STATUS                                             = 0x00E5;
 static const uint16_t IDENTIFICATION__MODEL_ID                                            = 0x010F;
 
-static const uint16_t BOOT_TIMEOUT     = 120;
+static const uint16_t BOOT_TIMEOUT     = 120;  // Restored original timeout - I2C issues were the real problem
 
 // Sensor Initialisation
 void VL53L1XComponent::setup() {
@@ -340,13 +339,13 @@ void VL53L1XComponent::loop() {
     return;
 
   if (!this->check_for_dataready(&is_dataready)) {
-    ESP_LOGD(TAG, "  Checking for data ready failed");
+    ESP_LOGD(TAG, "Checking for data ready failed");
     this->ranging_active_ = false;
     return;
   }
 
   if (!is_dataready) {
-    ESP_LOGD(TAG, "  Data ready not ready when it should be!");
+    ESP_LOGD(TAG, "Data ready not ready when it should be!");
     this->ranging_active_ = false;
     return;
   }
@@ -373,9 +372,9 @@ void VL53L1XComponent::loop() {
 
   ESP_LOGD(TAG, "Publishing Distance: %imm with Ranging status: %i",this->distance_,this->range_status_);
   if (this->distance_sensor_ != nullptr)
-    this->distance_sensor_->publish_state(this->distance_);
+     this->distance_sensor_->publish_state(this->distance_);
   if (this->range_status_sensor_ != nullptr)
-    this->range_status_sensor_->publish_state(this->range_status_);
+     this->range_status_sensor_->publish_state(this->range_status_);
 
   this->ranging_active_ = false;
 }
@@ -387,7 +386,7 @@ void VL53L1XComponent::update() {
   }
 
   if (!this->start_oneshot()) {
-    ESP_LOGE(TAG, " Start ranging failed in update");
+    ESP_LOGE(TAG, "Start ranging failed in update");
     this->error_code_ = START_RANGING_FAILED;
     this->mark_failed();
     return;
@@ -405,12 +404,24 @@ bool VL53L1XComponent::boot_state(uint8_t* state) {
 }
 
 bool VL53L1XComponent::get_sensor_id(bool* valid_sensor) {
+  // Add a small delay before reading sensor ID
+  delayMicroseconds(1000);
+
   if (!this->vl53l1x_read_byte_16(IDENTIFICATION__MODEL_ID, &this->sensor_id_)) {
+    ESP_LOGE(TAG, "Failed to read sensor ID from register 0x010F");
     *valid_sensor = false;
     return false;
   }
+
+  ESP_LOGI(TAG, "Read sensor ID: 0x%04X", this->sensor_id_);
+
   // 0xEACC = VL53L1X, 0xEBAA = VL53L4CD
   *valid_sensor = ((this->sensor_id_ == 0xEACC) || (this->sensor_id_ == 0xEBAA));
+
+  if (!*valid_sensor) {
+    ESP_LOGE(TAG, "Sensor ID 0x%04X does not match expected VL53L1X (0xEACC) or VL53L4CD (0xEBAA)", this->sensor_id_);
+  }
+
   return true;
 }
 
@@ -641,13 +652,13 @@ bool VL53L1XComponent::stop_continuous() {
 bool VL53L1XComponent::start_oneshot() {
   // clear interrupt trigger
   if (!this->vl53l1x_write_byte(SYSTEM__INTERRUPT_CLEAR, 0x01))  {
-    ESP_LOGE(TAG, "  Error writing clear interrupt when starting one-shot ranging");
+    ESP_LOGE(TAG, "Error writing clear interrupt when starting one-shot ranging");
     return false;
   }
 
   // enable one-shot ranging
   if (!this->vl53l1x_write_byte(SYSTEM__MODE_START, 0x10)) {
-    ESP_LOGE(TAG, "  Error writing start one-shot ranging");
+    ESP_LOGE(TAG, "Error writing start one-shot ranging");
     return false;
   }
 
@@ -658,12 +669,14 @@ bool VL53L1XComponent::start_oneshot() {
 bool VL53L1XComponent::check_for_dataready(bool *is_dataready) {
   uint8_t temp;
   if (!this->vl53l1x_read_byte(GPIO__TIO_HV_STATUS, &temp)) {
-    ESP_LOGE(TAG, "  Error reading data ready");
+    ESP_LOGE(TAG, "Error reading data ready register");
     *is_dataready = false;
+    this->ranging_active_ = false;
     return false;
   }
-  // assumes interrupt is active low (GPIO_HV_MUX__CTRL bit 4 is 1)
-  *is_dataready = ((temp & 0x01) == 0);
+
+  // Data ready when bit 0 is set
+  *is_dataready = ((temp & 0x01) == 1);
   return true;
 }
 
@@ -943,7 +956,16 @@ std::string VL53L1XComponent::range_status_to_string() {
 }
 
 bool VL53L1XComponent::vl53l1x_write_bytes(uint16_t a_register, const uint8_t *data, uint8_t len) {
-    return this->write_register16(a_register, data, len, true) == i2c::ERROR_OK;
+    // Convert 16-bit register address to bytes (big-endian)
+    uint8_t reg_bytes[2] = {(uint8_t)(a_register >> 8), (uint8_t)(a_register & 0xFF)};
+
+    // Create write buffer with register address + data
+    std::vector<uint8_t> write_data;
+    write_data.reserve(2 + len);
+    write_data.insert(write_data.end(), reg_bytes, reg_bytes + 2);
+    write_data.insert(write_data.end(), data, data + len);
+
+    return this->write(write_data.data(), write_data.size()) == i2c::ERROR_OK;
 }
 
 bool VL53L1XComponent::vl53l1x_write_byte(uint16_t a_register, uint8_t data) {
@@ -955,7 +977,7 @@ bool VL53L1XComponent::vl53l1x_write_bytes_16(uint8_t a_register, const uint16_t
   std::unique_ptr<uint16_t[]> temp{new uint16_t[len]};
   for (size_t i = 0; i < len; i++)
     temp[i] = i2c::htoi2cs(data[i]);
-  return (this->write_register16(a_register, reinterpret_cast<const uint8_t *>(temp.get()), len * 2, true) == i2c::ERROR_OK);
+  return this->vl53l1x_write_bytes(a_register, reinterpret_cast<const uint8_t *>(temp.get()), len * 2);
 }
 
 bool VL53L1XComponent::vl53l1x_write_byte_16(uint16_t a_register, uint16_t data) {
@@ -963,15 +985,20 @@ bool VL53L1XComponent::vl53l1x_write_byte_16(uint16_t a_register, uint16_t data)
 }
 
 bool VL53L1XComponent::vl53l1x_read_bytes(uint16_t a_register, uint8_t *data, uint8_t len) {
-    return this->read_register16(a_register, data, len, true) == i2c::ERROR_OK;
+    // Convert 16-bit register address to bytes (big-endian)
+    uint8_t reg_bytes[2] = {(uint8_t)(a_register >> 8), (uint8_t)(a_register & 0xFF)};
+
+    // Use write_read for consecutive write and read as recommended by ESPHome
+    // This properly handles the I2C transaction: WRITE (register) + RESTART + READ (data) + STOP
+    return this->write_read(reg_bytes, 2, data, len) == i2c::ERROR_OK;
 }
 
 bool VL53L1XComponent::vl53l1x_read_byte(uint16_t a_register, uint8_t *data) {
-    return this->read_register16(a_register, data, 1, true) == i2c::ERROR_OK;
+    return this->vl53l1x_read_bytes(a_register, data, 1);
 }
 
 bool VL53L1XComponent::vl53l1x_read_bytes_16(uint16_t a_register, uint16_t *data, uint8_t len) {
-  if (this->read_register16(a_register, reinterpret_cast<uint8_t *>(data), len * 2, true) != i2c::ERROR_OK)
+  if (!this->vl53l1x_read_bytes(a_register, reinterpret_cast<uint8_t *>(data), len * 2))
     return false;
   for (size_t i = 0; i < len; i++)
     data[i] = i2c::i2ctohs(data[i]);
