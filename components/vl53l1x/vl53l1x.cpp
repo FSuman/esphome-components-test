@@ -264,6 +264,8 @@ void VL53L1XComponent::setup() {
     this->mark_failed();
     return;
   }
+
+  this->_last_failed = 4;
 }
 
 void VL53L1XComponent::dump_config() {
@@ -359,15 +361,15 @@ void VL53L1XComponent::loop() {
 
   // Check if last range failed to avoid blips
   if (this->range_status_ != 0) {
-    if (this->_last_failed) {
-      ESP_LOGD(TAG, "Last range did not fail, not publishing failure");
-      this->_last_failed = true;
+    if (this->_last_failed <= 0) {
+      ESP_LOGD(TAG, "Not enough range failures, not publishing failure");
+      this->_last_failed -= 1;
       return;
     } else {
-      ESP_LOGD(TAG, "Last range also failed, publishing range");
+      ESP_LOGD(TAG, "Enough range failures, publishing range");
     }
   } else {
-    this->_last_failed = false;
+    this->_last_failed = 4;
   }
 
   ESP_LOGD(TAG, "Publishing Distance: %imm with Ranging status: %i",this->distance_,this->range_status_);

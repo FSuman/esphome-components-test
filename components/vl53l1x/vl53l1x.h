@@ -49,7 +49,7 @@ class VL53L1XComponent : public PollingComponent, public i2c::I2CDevice, public 
   DistanceMode distance_mode_;
 
   uint16_t timing_budget_;
-  bool _last_failed;
+  uint8_t _last_failed;
 
   uint16_t distance_{0};
 
